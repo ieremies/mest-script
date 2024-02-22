@@ -1,0 +1,5 @@
+#+title: Readme
+
+This script aims at doing the following:
+=python runner.py "./bin [files:path/to/files]"=
+run the command in quotes in parallel, substituting each file under the directory passed.
