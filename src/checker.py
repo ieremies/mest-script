@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
+"""
+This script will check a solution for the coverage of a graph.
+"""
+
 import os
 from itertools import combinations
 
 instance_path = "/Users/ieremies/mest/code/inst/"
+if not os.path.exists(instance_path):
+    instance_path = "/home/ieremies/code/inst/"
 
 
 class Checker:
 
     def _find_instance_file(self, instance_name: str) -> str:
-        # Find a file with the same name as the instance
-        # under the instance_path directory or any subdirectory
+        """
+        Find a file with the same name as the instance_name
+        under the instance_path directory or any subdirectory
+        """
         for root, _, files in os.walk(instance_path):
             for file in files:
                 if file == instance_name:
@@ -17,40 +25,53 @@ class Checker:
         raise FileNotFoundError(f"File {instance_name} not found")
 
     def _load_instance(self, instance_file: str) -> list[list[bool]]:
+        """
+        Read a DIMACS graph file and return the adjacency matrix.
+        """
         with open(instance_file, "r") as file:
             lines = file.readlines()
-            n = 0
-            for l in lines:
-                if l.startswith("p"):
-                    n = int(l.split()[2])
-                    break
-            adj = [[False for _ in range(n)] for _ in range(n)]
-            for l in lines:
-                if l.startswith("e"):
-                    u, v = l.split()[1:3]
-                    if instance_file.endswith(".col"):
-                        u, v = int(u) - 1, int(v) - 1
-                    else:
-                        u, v = int(u), int(v)
-                    adj[u][v] = adj[v][u] = True
+
+        n = 0
+        index = 1
+        for l in lines:
+            if l[0] == "p":
+                n = int(l.split()[2])
+            if l[0] == "e":
+                u, v = l.split()[1:3]
+                if u == "0" or v == "0":
+                    index = 0
+
+        adj = [[False for _ in range(n)] for _ in range(n)]
+        for l in lines:
+            if l[0] == "e":
+                u, v = l.split()[1:3]
+                u, v = int(u) - index, int(v) - index
+                adj[u][v] = adj[v][u] = True
 
         return adj
 
     def _load_solution(self, sol: str) -> list[set[int]]:
+        """
+        Read a solution from a string and return a list of sets of vertices
+        """
         res = []
         for c in sol.split("} {"):
             c = c.replace("{", "").replace("}", "").replace(",", "")
             res.append(set(map(int, c.split())))
         return res
 
-    def _confirm_coverage(self, adj: list[list[bool]], solution: list[set[int]]):
+    def _confirm_coverage(
+        self, instance_name: str, adj: list[list[bool]], solution: list[set[int]]
+    ) -> None:
         covered = [False for _ in range(len(adj))]
         for subset in solution:
             # For each combination of vertices in the subset
             for u, v in combinations(subset, 2):
                 # If the edge is not in the graph, print an error
-                if adj[u][v]:
-                    print(f"!!! Error: ({u}, {v}) in graph")
+                if u >= len(adj) or v >= len(adj):
+                    print(f"❌ {instance_name}: ({u}, {v}) out of bounds")
+                elif adj[u][v]:
+                    print(f"❌ {instance_name}: ({u}, {v}) in graph")
                 # If the edge is in the graph, mark the vertices as covered
                 covered[u] = True
                 covered[v] = True
@@ -59,13 +80,13 @@ class Checker:
         # If there is any vertex that is not covered, print an error
         for i, c in enumerate(covered):
             if not c:
-                print(f"!!! Error: vertex {i} not covered")
+                print(f"❌ {instance_name}: vertex {i} not covered")
 
     def check(self, sol: str, instance_name: str):
         instance_file = self._find_instance_file(instance_name)
         adj = self._load_instance(instance_file)
         solution = self._load_solution(sol)
-        self._confirm_coverage(adj, solution)
+        self._confirm_coverage(instance_name, adj, solution)
 
 
 if __name__ == "__main__":

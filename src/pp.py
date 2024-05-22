@@ -1,39 +1,63 @@
-#!/usr/bin/env python3
+import sys
+import yaml
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
-import os
-import json
 
 
-def get_times(data):
-    times = []
-    for k in data:
-        times.append(data[k]["run_time"])
+def get_common_instances(files):
+    common_instances = None
+
+    for file_path in files:
+        with open(file_path, "r") as file:
+            data = yaml.load(file, Loader=yaml.FullLoader)
+            current_instances = set(data.keys())
+
+            if common_instances is None:
+                common_instances = current_instances
+            else:
+                common_instances = common_instances.intersection(current_instances)
+
+    return common_instances
+
+
+def get_times(data, instances):
+    times = [data[k]["run_time"] for k in instances if data[k]["run_time"] is not None]
     return times
 
 
-def plot_cumulative_times(times):
+def plot_cumulative_times(times, label):
     times = np.array(times)
     times.sort()
     y = np.arange(len(times)) / len(times)
-    # x axis in log scale
     plt.xscale("log")
     plt.xlabel("Time (s)")
-    plt.xlim(0.001, 3555)
+    plt.xlim(0.001, max(times))
 
     plt.ylabel("Cumulative probability")
     plt.ylim(0.0, 1.0)
-    # plot the grid
     plt.grid(True)
-    plt.plot(times, y)
-    plt.show()
+    plt.plot(times, y, label=label)
 
 
 if __name__ == "__main__":
-    # First argv[1] if the name of the json
-    with open(sys.argv[1], "r") as file:
-        data = json.load(file)
-        times = get_times(data)
-        plot_cumulative_times(times)
-    pass
+    if len(sys.argv) < 3:
+        print("Usage: python script.py file1.yaml file2.yaml ...")
+        sys.exit(1)
+
+    files = sys.argv[1:]
+    common_instances = get_common_instances(files)
+    print(*common_instances, sep="\n")
+    print(f"Using data from {len(common_instances)} common instances.")
+
+    plt.figure(figsize=(10, 6))  # Adjust the figure size if needed
+
+    for file_path in files:
+        with open(file_path, "r") as file:
+            data = yaml.load(file, Loader=yaml.FullLoader)
+            times = get_times(data, common_instances)
+            # print sum of times
+            print(f"Total time for {file_path}: {sum(times)}")
+            plot_cumulative_times(times, label=f"File {file_path}")
+
+    plt.legend()
+    plt.show()
