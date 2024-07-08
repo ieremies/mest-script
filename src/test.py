@@ -1,6 +1,38 @@
 #!/usr/bin/env python3
+"""
+Script responsible for doing my testing.
+
+Flags:
+-k, --keep: do not delete the logs of the last instance set tested.
+-p, --primal: only test the primal.e build.
+-d, --debug: only test the debug.e build.
+"""
 import subprocess
 import conf
+import argparse
+
+parser = argparse.ArgumentParser(description="Help testing my code.")
+parser.add_argument(
+    "-k",
+    "--keep",
+    action="store_true",
+    default=False,
+    help="Keep the individual logs under tmp, default is to remove it.",
+)
+parser.add_argument(
+    "-p",
+    "--primal",
+    action="store_true",
+    default=False,
+    help="Only test the primal.e build.",
+)
+parser.add_argument(
+    "-d",
+    "--debug",
+    action="store_true",
+    default=False,
+    help="Only test the debug.e build.",
+)
 
 
 def ssh(cmd, supp=conf.debug):
@@ -67,10 +99,17 @@ def run(build=conf.default_build, instance=conf.default_instances, keep=False):
 
 
 if __name__ == "__main__":
+    args = parser.parse_args()
+
     send_code()
-    compile_code()
-    run()
-    compile_code("primal.e")
-    run("primal.e")
+
+    if not args.primal:
+        compile_code("debug.e")
+        run("debug.e", keep=args.keep and args.debug)
+
+    if not args.debug:
+        compile_code("primal.e")
+        run("primal.e", keep=args.keep)
+
     beam(f"{conf.spock_logs}/tmp.csv")  # only the last run is saved
     print("Done!")
