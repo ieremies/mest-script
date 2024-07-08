@@ -1,7 +1,0 @@
-#+title: Readme
-
-This is a collection of scripts to aid my masters.
-
-- runner :: runs a combination of command and instances in parallel.
-- parser :: parse the logs of a experiment and check wheter the provided solution are correct via the *checker*.
-- comparer :: compare two results generated with the parser, assuming the first one is the more reliable one (most of the times, the historical data)
