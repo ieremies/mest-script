@@ -56,8 +56,6 @@ def compile_code(build=conf.default_build):
 
 
 def run(build=conf.default_build, instance=conf.default_instances, keep=False):
-    print(f"⏳ Running {build} on {instance} instances on Spock...")
-
     cmd = f"python3 {conf.spock_script}/src/runner.py {build} {instance}"
 
     if keep:

@@ -86,7 +86,7 @@ def run(build, inst_set, tl=conf.time_limit):
         for future in tqdm(
             concurrent.futures.as_completed(future_to_element),
             total=len(future_to_element),
-            desc="   Running instances...",
+            desc=f"⏳ Running {build} on {inst_set} instances on Spock...",
         ):
             result = future.result()
             results.append(result)
