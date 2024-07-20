@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
+"""
+Script to run a build in a instance set.
+"""
 import argparse, subprocess, os
 import concurrent.futures
 from tqdm import tqdm
 
 import conf
-from utils.parser import parse
-from utils.io import write_csv, get_all_files
+from utils.read_write import get_all_files
 
 
+# === Argument parsing ========================================================
 arg_parser = argparse.ArgumentParser(description="Help running my code.")
 arg_parser.add_argument(
     "build",
@@ -22,21 +25,20 @@ arg_parser.add_argument(
     help=f"Which instance set to run, default is {conf.default_instances}",
 )
 arg_parser.add_argument(
-    "-k",
-    "--keep",
-    action="store_true",
-    default=False,
-    help="Keep the individual logs under tmp, default is to remove it.",
-)
-arg_parser.add_argument(
     "-tl",
     dest="time_limit",
     type=int,
     default=conf.time_limit,
     help="Time limit for the execution of each command.",
 )
-
-# check if on MacOS or Linux:
+arg_parser.add_argument(
+    "--force",
+    action="store_true",
+    default=False,
+    help="Force the execution of the build.",
+)
+# =============================================================================
+# === Check if on MacOS or Linux ==============================================
 if os.uname().sysname == "Darwin":
     path = conf.macos_path
     code = conf.macos_code
@@ -49,18 +51,18 @@ else:
     inst = conf.spock_instances
     logs = conf.spock_logs
     script = conf.spock_script
+# =============================================================================
 
 
-def run_instance(build, instance, tl=conf.time_limit):
+def run_instance(build, instance, tl=conf.time_limit, force=False):
+    """
+    Run a single instance with the given build.
+    """
     cmd = conf.cmd.format(code=code, build=build, inst=f"{inst}/all", instance=instance)
-    log_file = f"{logs}/tmp/{instance}_{build}.log"
+    log_file = f"{logs}/tmp/{build}/{instance}.log"
 
-    if conf.debug:
-        print(cmd, log_file)
-
-    if os.path.exists(log_file):
+    if os.path.exists(log_file) and not force:
         print(f"⚠️ {instance} already solved.")
-        return parse(log_file, instance.replace(".col", ""))
 
     with open(log_file, "w") as fd:
         try:
@@ -68,34 +70,30 @@ def run_instance(build, instance, tl=conf.time_limit):
         except subprocess.TimeoutExpired:
             pass
 
-    return parse(log_file, instance.replace(".col", ""))
 
-
-def run(build, inst_set, tl=conf.time_limit):
+def run(build, inst_set, tl=conf.time_limit, force=False):
     if not os.path.exists(f"{logs}/tmp"):
         os.makedirs(f"{logs}/tmp")
 
-    instances = os.listdir(f"{inst}/{inst_set}")
+    if not os.path.exists(f"{logs}/tmp/{build}"):
+        os.makedirs(f"{logs}/tmp/{build}")
+
+    # get instances from the given set
+    instances = [i.split("/")[-1] for i in get_all_files(f"{inst}/{inst_set}")]
 
     results = []
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
         future_to_element = {
-            executor.submit(run_instance, build, instance, tl): instance
+            executor.submit(run_instance, build, instance, tl, force): instance
             for instance in instances
         }
         for future in tqdm(
             concurrent.futures.as_completed(future_to_element),
             total=len(future_to_element),
-            desc=f"⏳ Running {build} on {inst_set} instances on Spock...",
         ):
-            result = future.result()
-            results.append(result)
-
-    write_csv(results, f"{logs}/tmp.csv")
+            results.append(future.result())
 
 
 if __name__ == "__main__":
     args = arg_parser.parse_args()
-    run(args.build, args.inst_set, args.time_limit)
-    if not args.keep:
-        os.system(f"rm -rf {logs}/tmp")
+    run(args.build, args.inst_set, args.time_limit, args.force)

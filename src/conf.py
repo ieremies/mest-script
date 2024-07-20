@@ -5,6 +5,7 @@ macos_code = macos_path + "/code"
 macos_script = macos_path + "/script"
 macos_logs = macos_path + "/logs"
 macos_instances = macos_path + "/inst"
+macos_hist = macos_instances + "/lit/best.csv"
 
 spock_path = "/home/ieremies"
 spock_code = spock_path + "/code"

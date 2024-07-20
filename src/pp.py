@@ -6,17 +6,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
-from utils.io import read_csv
+from utils.read_write import read_csv
+
+# TODO fazer o PP do gap
+# TODO fazer o histograma da variação do tempo e do gap entre os resultados da mesma instância
+# TODO fazer um filtro para as instâncias de um conjunto de instâncias
 
 
 def get_solved_instances(file):
     results = read_csv(file)
+    total = len(results)
     solved = {
         r["instance"]: {"time": r["time"], "value": r["lb"]}
         for r in results
-        if r["lb"] == r["ub"] and float(r["lb"]) > 0.0
+        if r["lb"] == r["ub"] and r["lb"] != "" and float(r["lb"]) > 0.0
     }
-    return solved
+    return solved, total
 
 
 def plot_cumulative_times(times, label, n_instances):
@@ -31,39 +36,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "files", metavar="files", type=str, nargs="+", help="Files to compare"
     )
-    # if to only use common instances or not
-    parser.add_argument(
-        "-c",
-        "--common",
-        action="store_true",
-        help="Use only common instances between files.",
-    )
     args = parser.parse_args()
 
-    p = []
-    for f in args.files:
-        solved = get_solved_instances(f)
-        print(f"File {f} has {len(solved)} solved instances.")
-        p.append(solved)
-
     times = []
-    if args.common:
-        common = set(p[0].keys())
-        for i in p[1:]:
-            common = common.intersection(i.keys())
-        print(f"Common instances: {len(common)}")
-        for i in p:
-            times.append([float(i[instance]["time"]) for instance in common])
-    else:
-        for i in p:
-            times.append([float(v["time"]) for _, v in i.items()])
-
-    # find max time and n_instance
     max_time = 0.0
     n_instances = 0
-    for t in times:
-        max_time = max(max_time, max(t))
-        n_instances = max(n_instances, len(t))
+    for f in args.files:
+        solved, total = get_solved_instances(f)
+        n_instances = max(n_instances, total)
+
+        times.append([float(v["time"]) for _, v in solved.items()])
+        max_time = max(max_time, max(times[-1]))
+        print(
+            f"File {f.split('/')[-1]} has {len(solved)} solved in {sum(times[-1]):.2f}s."
+        )
 
     plt.figure(figsize=(16, 9))
     plt.xscale("log")
@@ -76,7 +62,9 @@ if __name__ == "__main__":
 
     for t in times:
         plot_cumulative_times(
-            t, label=f"File {args.files[times.index(t)]}", n_instances=n_instances
+            t,
+            label=f"File {args.files[times.index(t)].split('/')[-1]}",
+            n_instances=n_instances,
         )
 
     plt.legend()
