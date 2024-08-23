@@ -16,6 +16,9 @@ def check(base, to_check):
             to_print.append(f"⚠️ We do not have information about {i}.")
             continue
 
+        if not to_check[i]["lb"]:
+            print("❌", i, "has no lower bound.")
+            continue
         to_check_lb = ceil(float(to_check[i]["lb"]))
         to_check_ub = floor(float(to_check[i]["ub"]))
         base_lb = ceil(float(base[i]["lb"]))

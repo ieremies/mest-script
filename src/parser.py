@@ -1,24 +1,40 @@
 #!/usr/bin/env python3
-import subprocess
-import sys
-from utils.read_write import get_all_files, write_dict_to_csv
 import inspect
-from tqdm import tqdm
-import utils.parse_functions as pf
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import argparse
+
+from loguru import logger
+from tqdm import tqdm
+
+import conf
+import utils.parse_functions as pf
+from utils.read_write import write_dict_to_csv
+from utils.utils import get_all_files
+
+# === Argument parsing ========================================================
+parser = argparse.ArgumentParser(description="Help parsing the logs.")
+parser.add_argument("directory", type=str, help="Directory with the logs to parse.")
+parser.add_argument(
+    "output_csv", type=str, help="Output CSV file with the parsed logs."
+)
+# =============================================================================
+# === Check if on MacOS or Linux ==============================================
+if os.uname().sysname == "Darwin":
+    logs = conf.macos_logs
+else:
+    logs = conf.linux_logs
+# =============================================================================
+# === Logger configuration ====================================================
+logger.remove()
+fmt = "{time:DD MMM YY (ddd) at HH:mm:ss} | {level} | {message}"
+logger.add(sys.stderr, format=fmt, level="ERROR")
+logger.add(f"{logs}/parser.log", format=fmt, level="INFO", rotation="10 MB")
+# =============================================================================
 
 
-def grep(pattern, path):
-    try:
-        result = subprocess.run(
-            ["grep", "-r", pattern, path], capture_output=True, text=True, check=True
-        )
-        return result.stdout.splitlines()
-    except subprocess.CalledProcessError as _:
-        return []
-
-
+@logger.catch
 def parse_inst(log_file, inst_name):
     d = {"lb": "", "ub": "", "time": ""}
 
@@ -33,11 +49,11 @@ def parse_inst(log_file, inst_name):
     # - run dsatur for the hole graph and get the first one
 
     for error in d["errors"]:
-        print(f"❌ {inst_name}: {error}")
+        logger.error(f"❌ {inst_name}: {error}")
     d["errors"] = len(d["errors"])
 
-    # for warn in d["warnings"]:
-    #     print(f"⚠️ {inst_name}: {warn}")
+    for warn in d["warnings"]:
+        logger.warning(f"⚠️ {inst_name}: {warn}")
     d["warnings"] = len(d["warnings"])
 
     if d["solved"] != "":
@@ -48,11 +64,9 @@ def parse_inst(log_file, inst_name):
 
 
 def parse_inst_wrapper(log_file):
-    inst_name = (
-        os.path.basename(log_file)
-        .replace("_debug.e.log", "")
-        .replace("_primal.e.log", "")
-    )
+    inst_name = os.path.basename(log_file.replace(".log", ""))
+    with open(log_file, "r") as f:
+        log_file = f.readlines()
     return inst_name, parse_inst(log_file, inst_name)
 
 
@@ -60,15 +74,12 @@ def parse(directory, output_csv):
     all_files = get_all_files(directory)
     results = {}
 
-    # Use ThreadPoolExecutor to parallelize the processing
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        # Create a future for each file processing
         futures = {
             executor.submit(parse_inst_wrapper, log_file): log_file
             for log_file in all_files
         }
 
-        # Use tqdm to track the progress of futures as they complete
         for future in tqdm(as_completed(futures), total=len(futures)):
             inst_name, result = future.result()
             results[inst_name] = result

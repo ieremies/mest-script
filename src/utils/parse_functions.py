@@ -4,17 +4,10 @@
 All functions should call the grep function to get the lines of interest
 and return a pair (key, value) to be added to the dictionary.
 """
-import subprocess
 
 
-def grep(pattern, path):
-    try:
-        result = subprocess.run(
-            ["grep", "-r", pattern, path], capture_output=True, text=True, check=True
-        )
-        return result.stdout.splitlines()
-    except subprocess.CalledProcessError as _:
-        return []
+def grep(pattern, file):
+    return [line.strip() for line in file if pattern in line]
 
 
 def get_n_components(log_file) -> tuple:
@@ -33,7 +26,7 @@ def get_errors(log_file) -> tuple:
     """
     Get the errors from the log file.
     """
-    return "errors", grep("FATL|ERR", log_file)
+    return "errors", grep("ERR", log_file) + grep("FATL", log_file)
 
 
 def get_warnings(log_file) -> tuple:

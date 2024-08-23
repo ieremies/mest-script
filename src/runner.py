@@ -2,13 +2,18 @@
 """
 Script to run a build in a instance set.
 """
-import argparse, subprocess, os
-import concurrent.futures
+import argparse
+import os
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from random import shuffle
+
+from loguru import logger
 from tqdm import tqdm
 
 import conf
-from utils.read_write import get_all_files
-
+from utils.utils import get_all_files, get_n_jobs
 
 # === Argument parsing ========================================================
 arg_parser = argparse.ArgumentParser(description="Help running my code.")
@@ -46,31 +51,69 @@ if os.uname().sysname == "Darwin":
     logs = conf.macos_logs
     script = conf.macos_script
 else:
-    path = conf.spock_path
-    code = conf.spock_code
-    inst = conf.spock_instances
-    logs = conf.spock_logs
-    script = conf.spock_script
+    path = conf.linux_path
+    code = conf.linux_code
+    inst = conf.linux_instances
+    logs = conf.linux_logs
+    script = conf.linux_script
+# =============================================================================
+# === Logger configuration ====================================================
+logger.remove()
+fmt = "{time:DD MMM YY (ddd) at HH:mm:ss} | {level} | {message}"
+logger.add(
+    f"{logs}/runner.log",
+    format=fmt,
+    level="INFO",
+    rotation="10 MB",
+)
+logger.add(
+    f"{logs}/runner_warning.log",
+    format=fmt,
+    level="WARNING",
+    rotation="10 MB",
+)
 # =============================================================================
 
 
+@logger.catch
 def run_instance(build, instance, tl=conf.time_limit, force=False):
     """
     Run a single instance with the given build.
     """
-    cmd = conf.cmd.format(code=code, build=build, inst=f"{inst}/all", instance=instance)
+    cmd = conf.cmd.format(
+        code=code, build=build, inst_set=f"{inst}/all", instance=instance
+    )
     log_file = f"{logs}/tmp/{build}/{instance}.log"
 
     if os.path.exists(log_file) and not force:
-        print(f"⚠️ {instance} already solved.")
+        logger.warning(f"{build}/{instance}: Skipping")
+        return
 
+    logger.info(f"{build}/{instance}: Started...")
+    timeout = False
     with open(log_file, "w") as fd:
         try:
             subprocess.run(cmd.split(), timeout=tl, stdout=fd, stderr=fd, text=True)
         except subprocess.TimeoutExpired:
-            pass
+            logger.error(f"{build}/{instance}: Timeout")
+            timeout = True
+        except Exception as e:
+            logger.error(f"{build}/{instance}: {e}")
+            return
+
+    if not os.path.exists(log_file):
+        logger.error(f"{build}/{instance}: Log file not found.")
+        return
+
+    with open(log_file, "r") as fd:
+        lines = fd.readlines()
+        if len(lines) > 1 and not timeout:
+            logger.info(
+                f"{build}/{instance}: Done -> {lines[-2].strip()[:80].replace(" "*10, " ")}"
+            )
 
 
+@logger.catch
 def run(build, inst_set, tl=conf.time_limit, force=False):
     if not os.path.exists(f"{logs}/tmp"):
         os.makedirs(f"{logs}/tmp")
@@ -80,18 +123,34 @@ def run(build, inst_set, tl=conf.time_limit, force=False):
 
     # get instances from the given set
     instances = [i.split("/")[-1] for i in get_all_files(f"{inst}/{inst_set}")]
+    shuffle(instances)
+
+    start = datetime.now()
+
+    logger.info(f"Running {len(instances)} instances whith {get_n_jobs()} workers.")
 
     results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-        future_to_element = {
-            executor.submit(run_instance, build, instance, tl, force): instance
-            for instance in instances
-        }
-        for future in tqdm(
-            concurrent.futures.as_completed(future_to_element),
-            total=len(future_to_element),
-        ):
+    with ThreadPoolExecutor(max_workers=get_n_jobs()) as ex:
+        f2e = {ex.submit(run_instance, build, i, tl, force): i for i in instances}
+        for future in tqdm(as_completed(f2e), total=len(f2e)):
             results.append(future.result())
+
+            logger.info(f"Done {len(results)} | Total {len(instances)}.")
+
+            # Average time per instance
+            elap = datetime.now() - start
+            avg = elap / len(results)
+            remain = avg * (len(instances) - len(results))
+            max_time = (len(instances) - len(results)) * tl
+            logger.info(
+                f"Elap: {elap} | Avg: {avg} | Remain: {remain} | Max: {max_time}"
+            )
+
+    # compress the logs
+    logger.info("Compressing logs...")
+    cmd = f"tar -czf {logs}/{build}.tar.gz {logs}/tmp/{build}"
+    subprocess.run(cmd.split())
+    logger.info("Done compressing logs.")
 
 
 if __name__ == "__main__":

@@ -5,9 +5,16 @@ Script responsible for doing my testing.
 import conf
 import argparse
 from utils.checker import check
-from utils.ssh import spock, beam, vulcan
+from utils.ssh import beam_to, beam_from, command
 
 parser = argparse.ArgumentParser(description="Help testing my code.")
+parser.add_argument(
+    "-m",
+    "--machine",
+    type=str,
+    default=conf.default_machine,
+    help=f"Which machine to run the code, default is {conf.default_machine}",
+)
 parser.add_argument(
     "-i",
     "--instance",
@@ -30,18 +37,11 @@ parser.add_argument(
     help="Keep the individual logs under tmp, default is to remove it.",
 )
 parser.add_argument(
-    "-p",
-    "--primal",
-    action="store_true",
-    default=False,
-    help="Only test the primal.e build.",
-)
-parser.add_argument(
-    "-d",
-    "--debug",
-    action="store_true",
-    default=False,
-    help="Only test the debug.e build.",
+    "-b",
+    "--build",
+    type=str,
+    default=conf.default_build,
+    help=f"Which build to run, default is {conf.default_build}",
 )
 parser.add_argument(
     "-c",
@@ -49,6 +49,13 @@ parser.add_argument(
     action="store_true",
     default=False,
     help="Clean the tmp folder",
+)
+parser.add_argument(
+    "-cto",
+    "--check_time_out",
+    action="store_true",
+    default=False,
+    help="Clean the results that have timed out",
 )
 parser.add_argument(
     "--send",
@@ -64,29 +71,35 @@ parser.add_argument(
 )
 
 
-def send_code():
-    print("⏳ Sending code to Spock...")
+def send_code(machine=conf.default_machine):
+    if machine == "mac":
+        return
 
-    vulcan(conf.macos_code)
-    spock(
-        f"cmake -B {conf.spock_code}/build -S {conf.spock_code}"
-    )  # generate build files
+    print(f"⏳ Sending code to {machine}...")
+
+    beam_to(machine, conf.macos_code)
+    command(machine, f"cmake -B {conf.linux_code}/build -S {conf.linux_code}")
     print("\033[F✅")
 
 
-def compile_code(build=conf.default_build):
-    print(f"⏳ Spock is compiling {build}...")
-    spock(f"cmake --build {conf.spock_code}/build -- -j --silent -k {build}")
+def compile_code(machine=conf.default_machine, build=conf.default_build):
+    code_path = conf.macos_code if machine == "mac" else conf.linux_code
+    print(f"⏳ {machine} is compiling {build}...")
+    command(machine, f"cmake --build {code_path}/build -- -j --silent -k {build}")
     print("\033[F✅")
 
 
-def run(build=conf.default_build, instance=conf.default_instances, tl=conf.time_limit):
-    print(
-        f"⏳ Spock is running {build} on {instance} instances with time limit of {tl}s..."
-    )
-    cmd = f"python3 {conf.spock_script}/src/runner.py {build} {instance} -tl {tl}"
+def run(
+    machine=conf.default_machine,
+    build=conf.default_build,
+    instance=conf.default_instances,
+    tl=conf.time_limit,
+):
+    script_path = conf.macos_script if machine == "mac" else conf.linux_script
+    print(f"⏳ {machine} is running {build} on {instance} with time limit of {tl}s...")
+    cmd = f"python3 {script_path}/src/runner.py {build} {instance} -tl {tl}"
 
-    spock(cmd, supp=False)
+    command(machine, cmd, supp=False)
 
     print("\033[F✅")
 
@@ -98,47 +111,54 @@ def check_wrapper():
     print("\033[F✅")
 
 
-def clean_tmp():
+def clean_tmp(machine=conf.default_machine):
+    logs_path = conf.macos_logs if machine == "mac" else conf.linux_logs
     print("⏳ Cleaning the tmp folder...")
-    spock(f"rm -rf {conf.spock_logs}/tmp")
+    command(machine, f"rm -rf {logs_path}/tmp")
     print("\033[F✅")
 
 
-def parse_tmp():
+def parse(machine, build):
+    logs_path = conf.macos_logs if machine == "mac" else conf.linux_logs
+    script_path = conf.macos_script if machine == "mac" else conf.linux_script
     print("⏳ Parsing the tmp folder...")
-    spock(
-        f"python3 {conf.spock_script}/src/parser.py {conf.spock_logs}/tmp {conf.spock_logs}/tmp.csv",
+    command(
+        machine,
+        f"python3 {script_path}/src/parser.py {logs_path}/tmp/{build} {logs_path}/tmp.csv",
         supp=False,
     )
     # print("\033[F✅")
+
+
+def script(machine, build, inst, tl, keep, debug):
+    compile_code(machine, build)
+    run(machine, build, instance=inst, tl=tl)
+    parse(machine, build)
+    beam_from(machine, f"{conf.linux_logs}/tmp.csv")  # only the last run is saved
+    check(conf.macos_hist, "tmp.csv")
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.parse:
-        parse_tmp()
-        beam(f"{conf.spock_logs}/tmp.csv")  # only the last run is saved
+        parse(args.machine, args.build)
+        beam_from(args.machine, f"{conf.linux_logs}/tmp.csv")
         check(conf.macos_hist, "tmp.csv")
         exit(0)
 
-    send_code()
+    if args.clean:
+        clean_tmp(args.machine)
+        exit(0)
 
-    if not args.primal:
-        compile_code("debug.e")
-        run("debug.e", instance=args.instance, tl=args.time_limit)
-        parse_tmp()
-        if not (args.keep and args.debug):
-            clean_tmp()
-
-    if not args.debug:
-        compile_code("primal.e")
-        run("primal.e", instance=args.instance, tl=args.time_limit)
-        parse_tmp()
-        if not args.keep:
-            clean_tmp()
-
-    beam(f"{conf.spock_logs}/tmp.csv")  # only the last run is saved
-    check(conf.macos_hist, "tmp.csv")
+    if not args.parse:
+        script(
+            args.machine,
+            args.build,
+            args.instance,
+            args.time_limit,
+            args.keep,
+            conf.debug,
+        )
 
     print("Done!")

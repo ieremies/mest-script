@@ -54,30 +54,3 @@ def read_csv_to_dict(csv_file) -> dict:
         key = values[0]
         d[key] = {k: v for k, v in zip(header[1:], values[1:])}
     return d
-
-
-def get_all_files(directory):
-    """
-    Get a list of all files in a directory, including symbolic links.
-    If it is a symbolic link, return the absolute path to where it points.
-    """
-    all_files = []
-
-    # Walk through the directory
-    for root, _, files in os.walk(directory):
-        for name in files:
-            file_path = os.path.join(root, name)
-            if os.path.islink(file_path):
-                # If it is a symbolic link, add the absolute target path
-                real_path = os.path.realpath(file_path)
-                all_files.append(real_path)
-            else:
-                # If it is a regular file, add the absolute file path
-                absolute_path = os.path.abspath(file_path)
-                all_files.append(absolute_path)
-
-    return all_files
-
-
-if __name__ == "__main__":
-    print(read_csv("/Users/ieremies/mest/logs/jun28.csv"))

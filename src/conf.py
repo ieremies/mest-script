@@ -7,16 +7,17 @@ macos_logs = macos_path + "/logs"
 macos_instances = macos_path + "/inst"
 macos_hist = macos_instances + "/lit/best.csv"
 
-spock_path = "/home/ieremies"
-spock_code = spock_path + "/code"
-spock_script = spock_path + "/script"
-spock_logs = spock_path + "/logs"
-spock_instances = spock_path + "/inst"
+linux_path = "/home/ieremies"
+linux_code = linux_path + "/code"
+linux_script = linux_path + "/script"
+linux_logs = linux_path + "/logs"
+linux_instances = linux_path + "/inst"
 
 default_build = "debug.e"
 default_instances = "easy"
+default_machine = "spock"
 time_limit = 100
 
 debug = False
 
-cmd = "{code}/build/{build} {inst}/{instance}"
+cmd = "{code}/build/{build} {inst_set}/{instance}"
