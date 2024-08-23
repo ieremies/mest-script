@@ -7,13 +7,12 @@ import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from random import shuffle
 
 from loguru import logger
 from tqdm import tqdm
 
 import conf
-from utils.utils import get_all_files, get_n_jobs
+from utils.utils import get_all_files, get_n_jobs, get_instances_from_set
 
 # === Argument parsing ========================================================
 arg_parser = argparse.ArgumentParser(description="Help running my code.")
@@ -109,7 +108,7 @@ def run_instance(build, instance, tl=conf.time_limit, force=False):
         lines = fd.readlines()
         if len(lines) > 1 and not timeout:
             logger.info(
-                f"{build}/{instance}: Done -> {lines[-2].strip()[:80].replace(" "*10, " ")}"
+                f"{build}/{instance}: Done -> {lines[-2].strip()[:80].replace(' '*10, ' ')}"
             )
 
 
@@ -122,9 +121,7 @@ def run(build, inst_set, tl=conf.time_limit, force=False):
         os.makedirs(f"{logs}/tmp/{build}")
 
     # get instances from the given set
-    instances = [i.split("/")[-1] for i in get_all_files(f"{inst}/{inst_set}")]
-    shuffle(instances)
-
+    instances = get_instances_from_set(inst, inst_set)
     start = datetime.now()
 
     logger.info(f"Running {len(instances)} instances whith {get_n_jobs()} workers.")

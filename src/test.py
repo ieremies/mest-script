@@ -76,7 +76,6 @@ def send_code(machine=conf.default_machine):
         return
 
     print(f"⏳ Sending code to {machine}...")
-
     beam_to(machine, conf.macos_code)
     command(machine, f"cmake -B {conf.linux_code}/build -S {conf.linux_code}")
     print("\033[F✅")
@@ -131,6 +130,7 @@ def parse(machine, build):
 
 
 def script(machine, build, inst, tl, keep, debug):
+    send_code(machine)
     compile_code(machine, build)
     run(machine, build, instance=inst, tl=tl)
     parse(machine, build)
@@ -151,14 +151,13 @@ if __name__ == "__main__":
         clean_tmp(args.machine)
         exit(0)
 
-    if not args.parse:
-        script(
-            args.machine,
-            args.build,
-            args.instance,
-            args.time_limit,
-            args.keep,
-            conf.debug,
-        )
+    script(
+        args.machine,
+        args.build,
+        args.instance,
+        args.time_limit,
+        args.keep,
+        conf.debug,
+    )
 
     print("Done!")

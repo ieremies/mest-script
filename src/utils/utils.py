@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+from random import shuffle
 
 
 def get_all_files(directory):
@@ -35,6 +36,7 @@ def get_instances_from_set(inst_dir: str, sets: str) -> list[str]:
         inst = get_all_files(f"{inst_dir}/{inst_set}")
         inst = [i.split("/")[-1] for i in inst]
         all.extend(inst)
+    shuffle(all)
     return all
 
 
