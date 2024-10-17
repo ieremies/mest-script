@@ -13,8 +13,8 @@ from loguru import logger
 from tqdm import tqdm
 
 import conf
-from utils.read_write import get_all_files, write_dict_to_csv
-from utils.jobs import get_n_jobs
+from utils.read_write import write_dict_to_csv
+from utils.utils import get_n_jobs, get_all_files
 from utils.parse_functions import grep
 
 # === Argument parsing ========================================================
@@ -134,6 +134,9 @@ def run(inst_set, tl, force=False):
 def parse_inst(log_file):
     d = {"lb": "", "ub": "", "time": ""}
     inst_name = os.path.basename(log_file).replace(".log", "")
+
+    with open(log_file, "r") as fd:
+        log_file = fd.readlines()
 
     time = grep("Computing coloring took", log_file)
     if time:

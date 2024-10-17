@@ -43,11 +43,6 @@ def parse_inst(log_file, inst_name):
             key, value = func(log_file)
             d[key] = value
 
-    # TODO more than one component:
-    # - add to main: LOG_F(INFO, "Lower bound %d", asn->get_lb()); and get the last one
-    #    - this is a shitty way to do
-    # - run dsatur for the hole graph and get the first one
-
     for error in d["errors"]:
         logger.error(f"❌ {inst_name}: {error}")
     d["errors"] = len(d["errors"])
@@ -65,8 +60,8 @@ def parse_inst(log_file, inst_name):
 
 def parse_inst_wrapper(log_file):
     inst_name = os.path.basename(log_file.replace(".log", ""))
-    with open(log_file, "r") as f:
-        log_file = f.readlines()
+    # with open(log_file, "r") as f:
+    #     log_file = f.readlines()
     return inst_name, parse_inst(log_file, inst_name)
 
 
@@ -80,7 +75,9 @@ def parse(directory, output_csv):
             for log_file in all_files
         }
 
-        for future in tqdm(as_completed(futures), total=len(futures)):
+        print(f"🔍 Parsing {len(all_files)} log files with {os.cpu_count()} workers")
+
+        for future in tqdm(as_completed(futures), total=len(futures), smoothing=0.0):
             inst_name, result = future.result()
             results[inst_name] = result
 

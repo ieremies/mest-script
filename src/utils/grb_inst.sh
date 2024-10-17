@@ -1,4 +1,11 @@
 #!/usr/bin/env sh
+
+# First parameter of the script is the name of the machine
+if [ -z "$1" ]; then
+    echo "Usage: $0 <machine>"
+    exit 1
+fi
+
 # find the gurobi tarball
 tarball=$(find . -maxdepth 1 -name 'gurobi*_linux64.tar.gz' | head -n 1)
 
@@ -6,6 +13,9 @@ if [ -z "$tarball" ]; then
     echo "No gurobi tarball found in the current directory"
     exit 1
 fi
+
+# scp -P 2222 gurobi11.0.3_linux64.tar.gz ieremies@opt5.loco.ic.unicamp.br:~/
+scp -P 2222 $tarball ieremies@$1.loco.ic.unicamp.br:~/
 
 # Extract the version from the tarball filename
 version=$(echo $tarball | sed -n 's/.*gurobi\([0-9.]*\)_linux64.tar.gz/\1/p')

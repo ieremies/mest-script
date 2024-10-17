@@ -9,6 +9,8 @@ def check(base, to_check):
     base = read_csv_to_dict(base)
     to_check = read_csv_to_dict(to_check)
 
+    no_lb = [i for i in to_check if not to_check[i]["lb"]]
+
     for i in to_check:
         # check if there is an instance in to_check that is not in base
         to_print = []
@@ -16,13 +18,18 @@ def check(base, to_check):
             to_print.append(f"⚠️ We do not have information about {i}.")
             continue
 
+        try:
+            base_lb = ceil(float(base[i]["lb"]))
+            base_ub = floor(float(base[i]["ub"]))
+        except ValueError:
+            to_print.append(f"⚠️ We do not have information about {i}.")
+            continue
+
         if not to_check[i]["lb"]:
-            print("❌", i, "has no lower bound.")
+            # print("❌", i, "has no lower bound.")
             continue
         to_check_lb = ceil(float(to_check[i]["lb"]))
         to_check_ub = floor(float(to_check[i]["ub"]))
-        base_lb = ceil(float(base[i]["lb"]))
-        base_ub = floor(float(base[i]["ub"]))
 
         if to_check_lb > 1 and to_check_lb > base_ub:
             to_print.append(f"❌ {i} lower ({to_check_lb}) > base upper ({base_ub}).")
@@ -44,12 +51,12 @@ def check(base, to_check):
             )
             all_good = False
 
-        if to_check_lb > 1 and to_check_lb > base_lb:
+        if to_check_lb > 1 and to_check_lb > base_lb and all_good:
             to_print.append(
                 f"❇️ Found better lower for {i}: (new) {to_check_lb} > (old) {base_lb}"
             )
 
-        if to_check_ub > 1 and to_check_ub < base_ub:
+        if to_check_ub > 1 and to_check_ub < base_ub and all_good:
             to_print.append(
                 f"❇️ Found better upper for {i}: (new) {to_check_ub} < (old) {base_ub}"
             )
@@ -65,9 +72,14 @@ def check(base, to_check):
             print(i, end=": ")
             if all_good:
                 print("✅\n    ", end="")
+            elif len(to_print) == 1:
+                print(to_print[0])
             else:
                 print("❌\n    ", end="")
-            print("\n    ".join(to_print))
+                print("\n    ".join(to_print))
+
+    if no_lb:
+        print(f"❌ {len(no_lb)} instances with no lower bound...")
 
     return all_good
 

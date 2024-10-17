@@ -1,0 +1,5 @@
+#+title: Readme
+
+Seria interessante ter uma opção de passar uma "hora" que o código tem que terminar.
+Ele então roda com $t * m / n$ de time limit.
+Confere quantos deram TL, calcula qual seria o time limit para rodar os que faltam e, se o tempo for maior que o último TL, executa.

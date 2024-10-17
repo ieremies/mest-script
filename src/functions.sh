@@ -1,13 +1,13 @@
 #!/usr/bin/env sh
 
 SPOCK="ieremies@spock.loco.ic.unicamp.br"
-OPT3="ieremies@opt3.loco.ic.unicamp.br"
+OPT5="ieremies@opt5.loco.ic.unicamp.br"
 
 beam_to() {
   if [ $1 = "spock" ]; then
     dest=$SPOCK:/home/ieremies/
-  elif [ $1 = "opt3" ]; then
-    dest=$OPT3:/home/ieremies/
+  elif [ $1 = "opt5" ]; then
+    dest=$OPT5:/home/ieremies/
   fi
 
   rsync -avzC --update --quiet --filter=":e- .gitignore" --filter "- .git/" -e "ssh -i /Users/ieremies/.ssh/id_rsa -p 2222" $2 $dest
@@ -22,8 +22,8 @@ beam_from() {
 
   if [ $1 = "spock" ]; then
     src=$SPOCK:$src
-  elif [ $1 = "opt3" ]; then
-    src=$OPT3:$src
+  elif [ $1 = "opt5" ]; then
+    src=$OPT5:$src
   fi
 
   rsync -avzC --quiet -e "ssh -i /Users/ieremies/.ssh/id_rsa -p 2222" $src ./
@@ -37,11 +37,11 @@ spock() {
   fi
 }
 
-opt3() {
+opt5() {
   if [ $# -eq 1 ]; then
-    ssh -p 2222 ieremies@opt3.loco.ic.unicamp.br $1
+    ssh -p 2222 ieremies@opt5.loco.ic.unicamp.br $1
   else
-    ssh -p 2222 ieremies@opt3.loco.ic.unicamp.br
+    ssh -p 2222 ieremies@opt5.loco.ic.unicamp.br
   fi
 }
 

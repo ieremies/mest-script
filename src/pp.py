@@ -4,11 +4,14 @@ Script to generate the Performance Profile.
 """
 # TODO PP do gap
 # TODO histograma da variação do tempo entre dois dados
+# https://github.com/garrettj403/SciencePlots
 
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import os
+import scienceplots
+
 
 from utils.read_write import read_csv
 from utils.utils import get_instances_from_set
@@ -56,7 +59,10 @@ def get_solved_times(results) -> list[float]:
     return [
         float(r["time"])
         for r in results
-        if r["lb"] == r["ub"] and r["lb"] != "" and float(r["lb"]) > 0.0
+        if r["lb"] == r["ub"]
+        and r["lb"] != ""
+        and float(r["lb"]) > 0.0
+        and r["time"] != ""
     ]
 
 
@@ -108,6 +114,14 @@ def plot_cumulative(data, axis, n_instances, label=None):
 
 # =============================================================================
 
+
+def my_float(s: str):
+    try:
+        return float(s)
+    except:
+        return -1
+
+
 if __name__ == "__main__":
     args = parser.parse_args()
 
@@ -127,7 +141,7 @@ if __name__ == "__main__":
         file_name = f.split("/")[-1].replace(".csv", "")
         results[file_name] = r
 
-        tl = max([float(i["time"]) for i in r])
+        tl = max([my_float(i["time"]) for i in r])
         print(f"\tTime limit for {file_name} seems to have been {tl:.2f}")
         max_time = max(max_time, tl)
 
@@ -143,6 +157,7 @@ if __name__ == "__main__":
 
     # ========================================================================
     fig, ax1 = plt.subplots(figsize=(16, 9))
+    # plt.style.use("science")
     plt.ylabel("Cumulative probability")
     plt.ylim(0.0, 1.0)
 
@@ -173,4 +188,6 @@ if __name__ == "__main__":
     lines_2, labels_2 = ax2.get_legend_handles_labels()
     ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper left")
 
+    # set legend position to bottom right
+    ax1.legend(loc="lower right")
     plt.show()

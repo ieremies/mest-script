@@ -7,12 +7,13 @@ import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+import time
 
 from loguru import logger
 from tqdm import tqdm
 
 import conf
-from utils.utils import get_all_files, get_n_jobs, get_instances_from_set
+from utils.utils import get_n_jobs, get_instances_from_set
 
 # === Argument parsing ========================================================
 arg_parser = argparse.ArgumentParser(description="Help running my code.")
@@ -112,6 +113,18 @@ def run_instance(build, instance, tl=conf.time_limit, force=False):
             )
 
 
+def is_file_newer_than_1_minute(directory):
+    current_time = time.time()
+    one_minute_ago = current_time - 60
+
+    for root, _, files in os.walk(directory):
+        for file in files:
+            file_path = os.path.join(root, file)
+            if os.path.getmtime(file_path) > one_minute_ago:
+                return True
+    return False
+
+
 @logger.catch
 def run(build, inst_set, tl=conf.time_limit, force=False):
     if not os.path.exists(f"{logs}/tmp"):
@@ -127,9 +140,17 @@ def run(build, inst_set, tl=conf.time_limit, force=False):
     logger.info(f"Running {len(instances)} instances whith {get_n_jobs()} workers.")
 
     results = []
-    with ThreadPoolExecutor(max_workers=get_n_jobs()) as ex:
+    workers = get_n_jobs() if not "debug" in build else os.cpu_count()
+    with ThreadPoolExecutor(max_workers=workers) as ex:
         f2e = {ex.submit(run_instance, build, i, tl, force): i for i in instances}
-        for future in tqdm(as_completed(f2e), total=len(f2e)):
+        # tqdm with ellapsed time as prefix
+        for future in tqdm(
+            as_completed(f2e),
+            total=len(f2e),
+            desc="Instances",
+            unit=" inst",
+            smoothing=0.0,
+        ):
             results.append(future.result())
 
             logger.info(f"Done {len(results)} | Total {len(instances)}.")
@@ -144,6 +165,8 @@ def run(build, inst_set, tl=conf.time_limit, force=False):
             )
 
     # compress the logs
+    # if not is_file_newer_than_1_minute(f"{logs}/tmp/{build}"):
+    #     return
     logger.info("Compressing logs...")
     cmd = f"tar -czf {logs}/{build}.tar.gz {logs}/tmp/{build}"
     subprocess.run(cmd.split())

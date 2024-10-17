@@ -117,6 +117,13 @@ def clean_tmp(machine=conf.default_machine):
     print("\033[F✅")
 
 
+def clean_timed_out(machine=conf.default_machine):
+    logs_path = conf.macos_logs if machine == "mac" else conf.linux_logs
+    print("⏳ Cleaning timed out instances in tmp folder...")
+    command(machine, f"grep -rL 'atexit' {logs_path} | xargs rm")
+    print("\033[F✅")
+
+
 def parse(machine, build):
     logs_path = conf.macos_logs if machine == "mac" else conf.linux_logs
     script_path = conf.macos_script if machine == "mac" else conf.linux_script
