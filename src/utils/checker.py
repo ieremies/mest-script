@@ -1,88 +1,57 @@
 #!/usr/bin/env python3
-from utils.read_write import read_csv_to_dict
-import sys
-from math import ceil, floor
+import pandas as pd
+import os
+
+import conf
+
+inst = conf.macos_instances if os.uname().sysname == "Darwin" else conf.linux_instances
+
+hist = {
+    line[1]["instance"]: dict(line[1])
+    for line in pd.read_csv(f"{inst}/metadata.csv").iterrows()
+}
+
+root = {
+    line[1]["instance"]: dict(line[1])
+    for line in pd.read_csv(f"{inst}/held-root.csv").iterrows()
+}
 
 
-def check(base, to_check):
-    all_good = True
-    base = read_csv_to_dict(base)
-    to_check = read_csv_to_dict(to_check)
+def check(i: dict) -> list[str]:
+    # get the line from hist with hist["instance"] == inst["instance"]
+    inst = i["instance"] + " " * (14 - len(i["instance"]))
+    if i["instance"] not in hist.keys():
+        return [f"🚧 {inst}: Instance not found in historical data."]
 
-    no_lb = [i for i in to_check if not to_check[i]["lb"]]
+    h = hist[i["instance"]]
 
-    for i in to_check:
-        # check if there is an instance in to_check that is not in base
-        to_print = []
-        if i not in base:
-            to_print.append(f"⚠️ We do not have information about {i}.")
-            continue
+    i["lb"] = int(i["lb"]) if i["lb"] else None
+    i["ub"] = int(i["ub"]) if i["ub"] else None
+    try:
+        i["root_lb"] = int(i["root_lb"]) if "root_lb" in i and i["root_lb"] else None
+    except ValueError:
+        i["root_lb"] = None
 
-        try:
-            base_lb = ceil(float(base[i]["lb"]))
-            base_ub = floor(float(base[i]["ub"]))
-        except ValueError:
-            to_print.append(f"⚠️ We do not have information about {i}.")
-            continue
+    try:
+        held = int(root[i["instance"]]["lb"])
+    except ValueError:
+        held = None
 
-        if not to_check[i]["lb"]:
-            # print("❌", i, "has no lower bound.")
-            continue
-        to_check_lb = ceil(float(to_check[i]["lb"]))
-        to_check_ub = floor(float(to_check[i]["ub"]))
+    # TODO adicionar checks da raiz
+    if i["root_lb"] and held and i["root_lb"] != held:
+        return [f"❌ {inst}: My root LB {i['root_lb']} != Held's LB {held}."]
+    if i["lb"] and h["ub"] < i["lb"]:
+        return [f"❌ {inst}: LB {i['lb']} is higher than historical UB {h['ub']}."]
+    if i["ub"] and h["lb"] > i["ub"]:
+        return [f"❌ {inst}: UB {i['ub']} is lower than historical LB {h['lb']}."]
 
-        if to_check_lb > 1 and to_check_lb > base_ub:
-            to_print.append(f"❌ {i} lower ({to_check_lb}) > base upper ({base_ub}).")
-            all_good = False
+    if i["lb"] and h["lb"] != h["ub"] and i["lb"] == i["ub"]:
+        return [f"⭐ {inst}: We closed an instance never solved before!"]
 
-        if to_check_ub > 1 and to_check_ub < base_lb:
-            to_print.append(f"❌ {i} upper ({to_check_ub}) < base lower ({base_lb}).")
-            all_good = False
+    ret = []
+    if i["ub"] and h["ub"] > i["ub"]:
+        ret.append(f"🎀 {inst}: UB {i['ub']} is better the historical UB {h['ub']}.")
+    if i["lb"] and h["lb"] < i["lb"]:
+        ret.append(f"🎀 {inst}: LB {i['lb']} is better the historical LB {h['lb']}.")
 
-        if to_check_lb > to_check_ub and to_check_lb > 1 and to_check_ub > 1:
-            to_print.append(
-                f"⚠️ Something is wrong with {i} gap: {to_check_lb} | {to_check_ub}"
-            )
-            all_good = False
-
-        if base_lb > base_ub and base_lb > 1 and base_ub > 1:
-            to_print.append(
-                f"⚠️ Something is wrong with {i} base gap: {base_lb} | {base_ub}"
-            )
-            all_good = False
-
-        if to_check_lb > 1 and to_check_lb > base_lb and all_good:
-            to_print.append(
-                f"❇️ Found better lower for {i}: (new) {to_check_lb} > (old) {base_lb}"
-            )
-
-        if to_check_ub > 1 and to_check_ub < base_ub and all_good:
-            to_print.append(
-                f"❇️ Found better upper for {i}: (new) {to_check_ub} < (old) {base_ub}"
-            )
-
-        to_check_solved = to_check_lb == to_check_ub and to_check_lb > 1
-        base_solved = base_lb == base_ub and base_lb > 1
-
-        if to_check_solved and not base_solved:
-            to_print.append(f"❇️ {i} is solved, but not in historical results.")
-            all_good = False
-
-        if to_print:
-            print(i, end=": ")
-            if all_good:
-                print("✅\n    ", end="")
-            elif len(to_print) == 1:
-                print(to_print[0])
-            else:
-                print("❌\n    ", end="")
-                print("\n    ".join(to_print))
-
-    if no_lb:
-        print(f"❌ {len(no_lb)} instances with no lower bound...")
-
-    return all_good
-
-
-if __name__ == "__main__":
-    check(sys.argv[1], sys.argv[2])
+    return ret

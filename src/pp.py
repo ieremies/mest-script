@@ -12,6 +12,9 @@ import argparse
 import os
 import scienceplots
 
+plt.style.use("science")
+# plt.style.use(["ieee"])
+
 
 from utils.read_write import read_csv
 from utils.utils import get_instances_from_set
@@ -59,10 +62,10 @@ def get_solved_times(results) -> list[float]:
     return [
         float(r["time"])
         for r in results
-        if r["lb"] == r["ub"]
+        if r["time"] != ""  # and float(r["time"]) <= 3600
         and r["lb"] != ""
         and float(r["lb"]) > 0.0
-        and r["time"] != ""
+        and r["lb"] == r["ub"]
     ]
 
 
@@ -108,8 +111,8 @@ def plot_cumulative(data, axis, n_instances, label=None):
 
     # add a horizontal doted line with the same color as the last plot
     # where the series end.
-    if y[-1] < 0.95:
-        axis.axhline(y[-1], color=axis.get_lines()[-1].get_color(), linestyle="--")
+    # if y[-1] < 0.95:
+    #     axis.axhline(y[-1], color=axis.get_lines()[-1].get_color(), linestyle="--")
 
 
 # =============================================================================
@@ -163,30 +166,38 @@ if __name__ == "__main__":
 
     # === Axis 1 - Time =====================================================
     ax1.set_xscale("log")
-    ax1.set_xlabel("Time (s)")
-    ax1.set_xlim(0.001, max_time)
+    # ax1.set_xlabel("Time (s)")
+    # ax1.set_xlim(0.001, max_time)
+
+    ax1.set_xlabel("Gap")
+    ax1.set_xlim(1.0, 3.0)
 
     # Plotting solved instances
-    solved = {r: get_solved_times(results[r]) for r in results}
-    for r in solved:
-        print(f"File {r} has {len(solved[r])} solved in {sum(solved[r]):.2f}s.")
-        plot_cumulative(solved[r], axis=ax1, label=f"File {r}", n_instances=n_inst)
-
-    # === Axis 2 - Gap ======================================================
-    ax2 = ax1.twiny()
-    ax2.set_xscale("log")
-    ax2.set_xlabel("Gap")
-    ax2.set_xlim(1.0, 101.0)
-
-    # Plotting gap
+    # solved = {r: get_solved_times(results[r]) for r in results}
     gaps = {r: get_gaps(results[r]) for r in results}
     for r in gaps:
-        plot_cumulative(gaps[r], axis=ax2, n_instances=n_inst)
+        print(f"File {r} has {len(gaps[r])} gaps in {sum(gaps[r]):.2f}s.")
+        if "held" in r:
+            plot_cumulative(gaps[r], axis=ax1, label=f"Held", n_instances=n_inst)
+        else:
+            plot_cumulative(gaps[r], axis=ax1, label=f"Ours", n_instances=n_inst)
+
+    # === Axis 2 - Gap ======================================================
+    # ax2 = ax1.twiny()
+    # ax2.set_xscale("log")
+    # ax2.set_xlabel("Gap")
+    # ax2.set_xlim(1.0, 101.0)
+
+    # # Plotting gap
+    # gaps = {r: get_gaps(results[r]) for r in results}
+    # for r in gaps:
+    #     plot_cumulative(gaps[r], axis=ax2, n_instances=n_inst)
 
     # === Legend =================================================
     lines_1, labels_1 = ax1.get_legend_handles_labels()
-    lines_2, labels_2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper left")
+    # lines_2, labels_2 = ax2.get_legend_handles_labels()
+    # ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper left")
+    ax1.legend(loc="upper left")
 
     # set legend position to bottom right
     ax1.legend(loc="lower right")

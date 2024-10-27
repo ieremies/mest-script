@@ -5,15 +5,16 @@ Script to run a build in a instance set.
 import argparse
 import os
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-import time
+from parser import parse_inst
 
-from loguru import logger
+import pandas as pd
 from tqdm import tqdm
 
 import conf
-from utils.utils import get_n_jobs, get_instances_from_set
+from utils.utils import get_instances_from_set, get_n_jobs
+import utils.checker
 
 # === Argument parsing ========================================================
 arg_parser = argparse.ArgumentParser(description="Help running my code.")
@@ -57,25 +58,8 @@ else:
     logs = conf.linux_logs
     script = conf.linux_script
 # =============================================================================
-# === Logger configuration ====================================================
-logger.remove()
-fmt = "{time:DD MMM YY (ddd) at HH:mm:ss} | {level} | {message}"
-logger.add(
-    f"{logs}/runner.log",
-    format=fmt,
-    level="INFO",
-    rotation="10 MB",
-)
-logger.add(
-    f"{logs}/runner_warning.log",
-    format=fmt,
-    level="WARNING",
-    rotation="10 MB",
-)
-# =============================================================================
 
 
-@logger.catch
 def run_instance(build, instance, tl=conf.time_limit, force=False):
     """
     Run a single instance with the given build.
@@ -85,48 +69,22 @@ def run_instance(build, instance, tl=conf.time_limit, force=False):
     )
     log_file = f"{logs}/tmp/{build}/{instance}.log"
 
-    if os.path.exists(log_file) and not force:
-        logger.warning(f"{build}/{instance}: Skipping")
-        return
+    # if log_file exists
+    if force or not os.path.exists(log_file):
+        with open(log_file, "w") as fd:
+            try:
+                subprocess.run(cmd.split(), timeout=tl, stdout=fd, stderr=fd, text=True)
+            except subprocess.TimeoutExpired:
+                pass
+            except Exception as _:
+                print(f"❌ {instance}")
+                return
 
-    logger.info(f"{build}/{instance}: Started...")
-    timeout = False
-    with open(log_file, "w") as fd:
-        try:
-            subprocess.run(cmd.split(), timeout=tl, stdout=fd, stderr=fd, text=True)
-        except subprocess.TimeoutExpired:
-            logger.error(f"{build}/{instance}: Timeout")
-            timeout = True
-        except Exception as e:
-            logger.error(f"{build}/{instance}: {e}")
-            return
-
-    if not os.path.exists(log_file):
-        logger.error(f"{build}/{instance}: Log file not found.")
-        return
-
-    with open(log_file, "r") as fd:
-        lines = fd.readlines()
-        if len(lines) > 1 and not timeout:
-            logger.info(
-                f"{build}/{instance}: Done -> {lines[-2].strip()[:80].replace(' '*10, ' ')}"
-            )
+    df = parse_inst(log_file)
+    return df
 
 
-def is_file_newer_than_1_minute(directory):
-    current_time = time.time()
-    one_minute_ago = current_time - 60
-
-    for root, _, files in os.walk(directory):
-        for file in files:
-            file_path = os.path.join(root, file)
-            if os.path.getmtime(file_path) > one_minute_ago:
-                return True
-    return False
-
-
-@logger.catch
-def run(build, inst_set, tl=conf.time_limit, force=False):
+def run(build, inst_set, tl=conf.time_limit, force=False, output_csv="tmp.csv"):
     if not os.path.exists(f"{logs}/tmp"):
         os.makedirs(f"{logs}/tmp")
 
@@ -135,42 +93,34 @@ def run(build, inst_set, tl=conf.time_limit, force=False):
 
     # get instances from the given set
     instances = get_instances_from_set(inst, inst_set)
-    start = datetime.now()
-
-    logger.info(f"Running {len(instances)} instances whith {get_n_jobs()} workers.")
 
     results = []
     workers = get_n_jobs() if not "debug" in build else os.cpu_count()
     with ThreadPoolExecutor(max_workers=workers) as ex:
         f2e = {ex.submit(run_instance, build, i, tl, force): i for i in instances}
-        # tqdm with ellapsed time as prefix
-        for future in tqdm(
-            as_completed(f2e),
-            total=len(f2e),
-            desc="Instances",
-            unit=" inst",
-            smoothing=0.0,
-        ):
+        for future in tqdm(as_completed(f2e), total=len(f2e), smoothing=0.0):
             results.append(future.result())
 
-            logger.info(f"Done {len(results)} | Total {len(instances)}.")
+    df = pd.concat(results, ignore_index=True)
+    df = df.drop(columns=["errors", "warnings"])
+    if output_csv:
+        df.to_csv(output_csv, index=False)
 
-            # Average time per instance
-            elap = datetime.now() - start
-            avg = elap / len(results)
-            remain = avg * (len(instances) - len(results))
-            max_time = (len(instances) - len(results)) * tl
-            logger.info(
-                f"Elap: {elap} | Avg: {avg} | Remain: {remain} | Max: {max_time}"
-            )
-
-    # compress the logs
-    # if not is_file_newer_than_1_minute(f"{logs}/tmp/{build}"):
-    #     return
-    logger.info("Compressing logs...")
     cmd = f"tar -czf {logs}/{build}.tar.gz {logs}/tmp/{build}"
     subprocess.run(cmd.split())
-    logger.info("Done compressing logs.")
+
+    for i in df.iterrows():
+        s = utils.checker.check(dict(i[1]))
+        if s:
+            print(*s, sep="\n")
+
+    print("-" * 18)
+    no_lb = df[df["lb"] == ""].shape[0]
+    solved = df[df["lb"] == df["ub"]].shape[0]
+    total_time = df["time"].sum()
+    print(f"Without LB : {no_lb}")
+    print(f"Solved     : {solved}")
+    print(f"Total time : {total_time:.2f}s")
 
 
 if __name__ == "__main__":

@@ -1,88 +1,67 @@
 #!/usr/bin/env python3
 import inspect
-import os
-import sys
+import sys, os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import argparse
 
-from loguru import logger
 from tqdm import tqdm
+import warnings
+import pandas as pd
+
+# Suppress FutureWarning messages
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 import conf
 import utils.parse_functions as pf
-from utils.read_write import write_dict_to_csv
 from utils.utils import get_all_files
 
-# === Argument parsing ========================================================
-parser = argparse.ArgumentParser(description="Help parsing the logs.")
-parser.add_argument("directory", type=str, help="Directory with the logs to parse.")
-parser.add_argument(
-    "output_csv", type=str, help="Output CSV file with the parsed logs."
-)
-# =============================================================================
-# === Check if on MacOS or Linux ==============================================
-if os.uname().sysname == "Darwin":
-    logs = conf.macos_logs
-else:
-    logs = conf.linux_logs
-# =============================================================================
-# === Logger configuration ====================================================
-logger.remove()
-fmt = "{time:DD MMM YY (ddd) at HH:mm:ss} | {level} | {message}"
-logger.add(sys.stderr, format=fmt, level="ERROR")
-logger.add(f"{logs}/parser.log", format=fmt, level="INFO", rotation="10 MB")
-# =============================================================================
+logs = conf.macos_logs if os.uname().sysname == "Darwin" else conf.linux_logs
 
 
-@logger.catch
-def parse_inst(log_file, inst_name):
-    d = {"lb": "", "ub": "", "time": ""}
+def parse_inst(log_file) -> pd.DataFrame:
+    # Create new dataframe, those are the minimum columns
+    df = pd.DataFrame(columns=["instance", "lb", "ub", "time", "errors", "warnings"])
+    inst_name = log_file.split("/")[-1].replace(".log", "")
+    df["instance"] = [inst_name]
 
     for name, func in inspect.getmembers(pf, inspect.isfunction):
         if inspect.isfunction(func) and name.startswith("get"):
-            key, value = func(log_file)
-            d[key] = value
+            dict = func(log_file)
+            for key in dict:
+                if type(dict[key]) == list and len(dict[key]) > 1:
+                    df[key] = [dict[key]]
+                else:
+                    df[key] = dict[key]
 
-    for error in d["errors"]:
-        logger.error(f"❌ {inst_name}: {error}")
-    d["errors"] = len(d["errors"])
+    if df["errors"][0]:
+        for e in df["errors"][0]:
+            print(f"❌ {inst_name + ' ' * (14 - len(inst_name))}: {e}")
+    df["errors"] = len(df["errors"])
 
-    for warn in d["warnings"]:
-        logger.warning(f"⚠️ {inst_name}: {warn}")
-    d["warnings"] = len(d["warnings"])
+    # TODO treat warnings
+    df["warnings"] = len(df["warnings"])
 
-    if d["solved"] != "":
-        d["lb"] = d["solved"]
-        d["ub"] = d["solved"]
+    if df["solved"][0] != "":
+        df["lb"] = df["solved"]
+        df["ub"] = df["solved"]
 
-    return d
-
-
-def parse_inst_wrapper(log_file):
-    inst_name = os.path.basename(log_file.replace(".log", ""))
-    # with open(log_file, "r") as f:
-    #     log_file = f.readlines()
-    return inst_name, parse_inst(log_file, inst_name)
+    return df
 
 
-def parse(directory, output_csv):
+def parse_all(directory, output_csv: str = "") -> pd.DataFrame:
     all_files = get_all_files(directory)
-    results = {}
+    results = []
 
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        futures = {
-            executor.submit(parse_inst_wrapper, log_file): log_file
-            for log_file in all_files
-        }
-
-        print(f"🔍 Parsing {len(all_files)} log files with {os.cpu_count()} workers")
-
+        futures = {executor.submit(parse_inst, f): f for f in all_files}
         for future in tqdm(as_completed(futures), total=len(futures), smoothing=0.0):
-            inst_name, result = future.result()
-            results[inst_name] = result
+            results.append(future.result())
 
-    write_dict_to_csv(results, output_csv)
+    df = pd.concat(results, ignore_index=True)
+    if output_csv:
+        df.to_csv(output_csv, index=False)
+
+    return df
 
 
 if __name__ == "__main__":
-    parse(sys.argv[1], sys.argv[2])
+    parse_all(sys.argv[1], sys.argv[2])
