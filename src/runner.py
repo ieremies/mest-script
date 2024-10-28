@@ -106,8 +106,8 @@ def run(build, inst_set, tl=conf.time_limit, force=False, output_csv="tmp.csv"):
     if output_csv:
         df.to_csv(output_csv, index=False)
 
-    cmd = f"tar -czf {logs}/{build}.tar.gz {logs}/tmp/{build}"
-    subprocess.run(cmd.split())
+    # cmd = f"tar -czf {logs}/{build}.tar.gz {logs}/tmp/{build}"
+    # subprocess.run(cmd.split())
 
     for i in df.iterrows():
         s = utils.checker.check(dict(i[1]))

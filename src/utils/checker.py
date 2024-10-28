@@ -36,6 +36,8 @@ def check(i: dict) -> list[str]:
         held = int(root[i["instance"]]["lb"])
     except ValueError:
         held = None
+    except KeyError:
+        i["root_lb"] = None
 
     # TODO adicionar checks da raiz
     if i["root_lb"] and held and i["root_lb"] != held:
