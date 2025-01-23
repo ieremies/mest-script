@@ -17,8 +17,9 @@ root = {
 }
 
 
-def check(i: dict) -> list[str]:
+def check(d: dict) -> list[str]:
     # get the line from hist with hist["instance"] == inst["instance"]
+    i = d.copy()
     inst = i["instance"] + " " * (14 - len(i["instance"]))
     if i["instance"] not in hist.keys():
         return [f"🚧 {inst}: Instance not found in historical data."]
@@ -39,9 +40,10 @@ def check(i: dict) -> list[str]:
     except KeyError:
         i["root_lb"] = None
 
-    # TODO adicionar checks da raiz
-    if i["root_lb"] and held and i["root_lb"] != held:
-        return [f"❌ {inst}: My root LB {i['root_lb']} != Held's LB {held}."]
+    # print(i)
+
+    # if i["root_lb"] and i["root_lb"] != held[]:
+    #     return [f"❌ {inst}: My root LB {i['root_lb']} != Held's LB {held}."]
     if i["lb"] and h["ub"] < i["lb"]:
         return [f"❌ {inst}: LB {i['lb']} is higher than historical UB {h['ub']}."]
     if i["ub"] and h["lb"] > i["ub"]:

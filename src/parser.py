@@ -13,6 +13,8 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 import conf
 import utils.parse_functions as pf
 from utils.utils import get_all_files
+import utils.checker
+
 
 logs = conf.macos_logs if os.uname().sysname == "Darwin" else conf.linux_logs
 
@@ -25,16 +27,19 @@ def parse_inst(log_file) -> pd.DataFrame:
 
     for name, func in inspect.getmembers(pf, inspect.isfunction):
         if inspect.isfunction(func) and name.startswith("get"):
-            dict = func(log_file)
-            for key in dict:
-                if type(dict[key]) == list and len(dict[key]) > 1:
-                    df[key] = [dict[key]]
+            try:
+                d = func(log_file)
+            except Exception as e:
+                print(f"Error in {name} for {inst_name}: {e}")
+                continue
+            for key in d:
+                if type(d[key]) == list and len(d[key]) > 1:
+                    df[key] = [d[key]]
                 else:
-                    df[key] = dict[key]
+                    df[key] = d[key]
 
-    if df["errors"][0]:
-        for e in df["errors"][0]:
-            print(f"❌ {inst_name + ' ' * (14 - len(inst_name))}: {e}")
+    if df["errors"][0] and len(df["errors"][0][0]) > 20:
+        print(f"\n❌ {inst_name + ' ' * (14 - len(inst_name))}: {df['errors'][0][0]}")
     df["errors"] = len(df["errors"])
 
     # TODO treat warnings
@@ -43,6 +48,11 @@ def parse_inst(log_file) -> pd.DataFrame:
     if df["solved"][0] != "":
         df["lb"] = df["solved"]
         df["ub"] = df["solved"]
+
+    for i in df.iterrows():
+        s = utils.checker.check(dict(i[1]))
+        if s:
+            print(*s, sep="\n")
 
     return df
 

@@ -5,7 +5,6 @@ Script to run a build in a instance set.
 import argparse
 import os
 import subprocess
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from parser import parse_inst
 
@@ -43,6 +42,12 @@ arg_parser.add_argument(
     default=False,
     help="Force the execution of the build.",
 )
+arg_parser.add_argument(
+    "--clean",
+    action="store_true",
+    default=False,
+    help="Clean the logs directory.",
+)
 # =============================================================================
 # === Check if on MacOS or Linux ==============================================
 if os.uname().sysname == "Darwin":
@@ -58,6 +63,21 @@ else:
     logs = conf.linux_logs
     script = conf.linux_script
 # =============================================================================
+
+
+def clean_logs(build):
+    cmd = f"rm -rf {logs}/tmp/{build}"
+    subprocess.run(cmd.split())
+
+
+def clean_timeouts(build):
+    cmd = f"grep -L 'atexit' {logs}/tmp/{build}/*.log | xargs rm"
+    subprocess.run(cmd, shell=True)
+
+
+def clean_errors(build):
+    cmd = f"grep -E 'ERR|FATL' {logs}/tmp/{build}/*.log | xargs rm"
+    subprocess.run(cmd, shell=True)
 
 
 def run_instance(build, instance, tl=conf.time_limit, force=False):
@@ -80,7 +100,11 @@ def run_instance(build, instance, tl=conf.time_limit, force=False):
                 print(f"❌ {instance}")
                 return
 
-    df = parse_inst(log_file)
+    try:
+        df = parse_inst(log_file)
+    except:
+        print(f"Error while parsing {instance}")
+        return
     return df
 
 
@@ -93,6 +117,7 @@ def run(build, inst_set, tl=conf.time_limit, force=False, output_csv="tmp.csv"):
 
     # get instances from the given set
     instances = get_instances_from_set(inst, inst_set)
+    print(len(instances))
 
     results = []
     workers = get_n_jobs() if not "debug" in build else os.cpu_count()
@@ -125,4 +150,13 @@ def run(build, inst_set, tl=conf.time_limit, force=False, output_csv="tmp.csv"):
 
 if __name__ == "__main__":
     args = arg_parser.parse_args()
-    run(args.build, args.inst_set, args.time_limit, args.force)
+    if args.clean:
+        clean_logs(args.build)
+    else:
+        run(
+            args.build,
+            args.inst_set,
+            args.time_limit,
+            args.force,
+            output_csv=args.build.replace(".e", ".csv"),
+        )

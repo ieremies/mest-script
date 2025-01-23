@@ -49,12 +49,23 @@ def load_and_filter_results(file_path, instances):
 
 
 # Function to get solved times from results
-def get_solved_times(df):
-    # for each line, return time if lb == ub and lb > 0
-    # otherwise, return NaN
+def get_solved_rank(df, min_time):
+    # for each line, return instance[time] / instance[min_time] if lb == ub and lb > 0 else return nan
     return df.apply(
-        lambda x: x["time"] if x["lb"] == x["ub"] and x["lb"] > 0 else np.nan, axis=1
+        lambda x: (
+            x["time"] / min_time[x["instance"]]
+            if x["lb"] == x["ub"] and x["lb"] > 0
+            else np.nan
+        ),
+        axis=1,
     )
+
+    # return df[
+    #     (df["time"] != "")
+    #     & (df["lb"] != "")
+    #     & (df["lb"].astype(float) > 0)
+    #     & (df["lb"] == df["ub"])
+    # ]["time"].astype(float)
 
 
 def get_gap(df):
@@ -103,6 +114,7 @@ if __name__ == "__main__":
         # Load and filter data
         df = load_and_filter_results(f, inst)
         # filter to those that have ub > 3
+        df = df[df["ub"] > 3]
         results[file_name] = df
 
         # Calculate maximum time
@@ -117,9 +129,19 @@ if __name__ == "__main__":
 
     print("Common instances:", n_inst)
 
-    fig, axs = plt.subplots(1, 2, gridspec_kw={"width_ratios": [7, 4]})
-
+    # for each instance, get the min time between the compared algorithms
+    min_times = {
+        instance: min(
+            [
+                df[df["instance"] == instance]["time"].values[0]
+                for df in results.values()
+            ]
+        )
+        for instance in inst
+    }
     # === Plotting time x cumulative probability ===============================
+    fig, axs = plt.subplots(1, 2, figsize=(16, 9), gridspec_kw={"width_ratios": [7, 4]})
+
     axs[0].set_ylim(0.0, 1.0)
 
     axs[0].grid(axis="y", linestyle="--", alpha=0.7)
@@ -127,18 +149,16 @@ if __name__ == "__main__":
 
     axs[0].set_xscale("log")
     axs[0].set_xlabel("Time (s)")
-    axs[0].set_xlim(0.001, 3600)  # or max_time
+    axs[0].set_xlim(1, 200)  # or max_time
     axs[0].grid(axis="x", linestyle="--", alpha=0.7)
 
     # Plot solved instances cumulative distribution
     for name, df in results.items():
-        time = get_solved_times(df)
-        print(f"{name:^25}... {len(time)} solved in {time.sum():.2f}s.")
-        plot_cumulative(time, axis=axs[0], label=name, n_instances=n_inst, max=3600)
+        rank = get_solved_rank(df, min_times)
+        plot_cumulative(rank, axis=axs[0], label=name, n_instances=n_inst, max=3600)
 
     # === Plotting gap x cumulative probability ================================
     axs[1].set_ylim(0.0, 1.0)
-
     axs[1].grid(axis="y", linestyle="--", alpha=0.7)
     # axs[1].yaxis.set_visible(False)
     axs[1].tick_params(axis="y", which="both", left=False, right=True, labelsize=False)
@@ -148,7 +168,7 @@ if __name__ == "__main__":
     axs[1].set_xscale("log")
     axs[1].set_xlabel("Gap")
     gap_xlim_min = 0.0036
-    gap_xlim_max = 10
+    gap_xlim_max = 10.3
     axs[1].set_xlim(gap_xlim_min, gap_xlim_max)
     axs[1].grid(axis="x", linestyle="--", alpha=0.7)
 
@@ -170,6 +190,6 @@ if __name__ == "__main__":
     axs[1].legend(loc="lower right")
     plt.subplots_adjust(wspace=0)
     # print which colors are used in each file
-    plt.show()
+    # plt.show()
 
-    # plt.savefig(f"/Users/ieremies/mest/write/dis/img/accu-{args.instance_set}.svg")
+    plt.savefig(f"/Users/ieremies/mest/write/dis/img/pp-{args.instance_set}.svg")

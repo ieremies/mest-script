@@ -2,11 +2,12 @@
 
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pgf import _tex_escape as mpl_common_texification
+import seaborn as sns
+
 import sys
 
-import scienceplots
-
-plt.style.use("science")
+plt.style.use("ggplot")
 
 # Step 1: Load the metadata CSV and other CSVs
 metadata = pd.read_csv("/Users/ieremies/mest/inst/metadata.csv")

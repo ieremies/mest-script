@@ -34,7 +34,7 @@ def grep(pattern: str, file: str | list[str], max_matches: int = -1) -> list[str
 
 
 def get_n_components(log_file) -> dict:
-    n_comp = grep("INFO| { Solver.", log_file, max_matches=1)
+    n_comp = grep("{ solve_connected", log_file)
     if not n_comp:
         return {"components": None}
 
@@ -43,12 +43,13 @@ def get_n_components(log_file) -> dict:
 
 def get_errors(log_file) -> dict:
     errors = grep("ERR", log_file) + grep("FATL", log_file)
+    errors += grep("Loguru caught a signal", log_file)
     return {"errors": errors if errors else None}
 
 
-def get_warnings(log_file) -> dict:
-    warn = grep("WARN", log_file)
-    return {"warnings": warn if warn else None}
+# def get_warnings(log_file) -> dict:
+#     warn = grep("WARN", log_file)
+#     return {"warnings": warn if warn else None}
 
 
 def get_time(log_file) -> dict:
@@ -68,43 +69,52 @@ def get_final_solution(log_file) -> dict:
 
 def get_lb(log_file) -> dict:
     comp = get_n_components(log_file)["components"]
-    if not comp is None and comp > 1:
+    if comp is None or comp > 1:
         return {"lb": ""}
 
-    root = grep("Root ", log_file)
+    root = grep("Root ", log_file, max_matches=1)
     if not root:
-        return {"lb": ""}
+        partial_lb = grep("New lower bound: ", log_file)
+        all = [int(i.split()[-1]) for i in partial_lb]
+        return {"lb": max(all)}
 
     value = float(root[0].split()[-3])
     return {"lb": value}
 
 
 def get_ub(log_file) -> dict:
-    initial = grep("INFO| Upper bound", log_file, max_matches=1)
-    if not initial:
+    comp = get_n_components(log_file)["components"]
+    if comp is None or comp > 1:
         return {"ub": ""}
 
-    initial = int(initial[0].split()[-1])
-
-    comp = get_n_components(log_file)["components"]
-    if not comp is None and comp > 1:
-        return {"ub": initial}
-
-    all = [initial]
-    upper = grep("New upper bound:", log_file) + grep("New UB:", log_file)
+    all = []
+    upper = grep("| .   .   Upper", log_file) + grep("| .   Upper", log_file)
     for u in upper:
         all.append(int(u.split()[-1]))
 
-    return {"ub": max(all)}
+    return {"ub": min(all)}
 
 
 def get_root_solution(log_file) -> dict:
-    root = grep("Root ", log_file, max_matches=1)
-    if not root or len(root) > 1:
-        return {"root": ""}
+    comp = get_n_components(log_file)["components"]
+    if comp is None or comp > 1:
+        return {}
 
-    ub = int(root[0].split()[-1])
-    lb = int(root[0].split()[-3])
-    time = float(root[0].split()[1][:-2])
+    root = grep("Root ", log_file, max_matches=1)
+    if not root:
+        return {}
+
+    lb, ub = root[0].split("Root ")[1].split("|")
+    lb = int(lb.split()[0])
+    ub = int(ub.split()[0])
+    time = float(root[0].split("s)")[0][1:])
 
     return {"root_time": time, "root_lb": lb, "root_ub": ub}
+
+
+def get_solved(log_file) -> dict:
+    solved = grep("Coloring: SOL", log_file, max_matches=1)
+    if not solved:
+        return {}
+    value = float(solved[0].split("SOL")[-1].split()[0])
+    return {"lb": value, "ub": value}
