@@ -3,11 +3,14 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pgf import _tex_escape as mpl_common_texification
+
+import scienceplots
 import seaborn as sns
 
 import sys
 
-plt.style.use("ggplot")
+plt.style.use("science")
+plt.style.use("~/mest/script/src/dis.mplstyle")
 
 # Step 1: Load the metadata CSV and other CSVs
 metadata = pd.read_csv("/Users/ieremies/mest/inst/metadata.csv")
@@ -34,8 +37,11 @@ all_data = all_data[["instance", "time", "source"]]
 best_times = all_data.sort_values(by="time").groupby("instance").first().reset_index()
 
 # Merge the best times with the metadata
+# remove lines whose instance does not start with 'g'
+best_times = best_times[best_times["instance"].str.startswith("g")]
 m = pd.merge(best_times, metadata, on="instance")
-m = m.dropna()
+# m = m.dropna()
+print(m)
 
 # For each instance, compute v1 and v2
 m["v1"] = (
@@ -51,7 +57,7 @@ colors = plt.cm.get_cmap("tab10", len(unique_files))
 color_map = {file: colors(i) for i, file in enumerate(unique_files)}
 
 # Step 5: Create a plot with 4 subplots
-fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
 
 # Plot function to simplify each scatter plot with color mapping
@@ -97,10 +103,12 @@ handles = [
     for color in color_map.values()
 ]
 labels = list(color_map.keys())
-fig.legend(
-    handles, labels, loc="upper center", title="CSV Files", ncol=len(unique_files)
-)
+# fig.legend(
+#     handles, labels, loc="upper center", title="CSV Files", ncol=len(unique_files)
+# )
 
 # Adjust layout and show plot
 plt.tight_layout(rect=[0, 0, 1, 0.95])  # Leave space for the legend
-plt.show()
+
+# plt.show()
+plt.savefig("/Users/ieremies/mest/write/dis/img/matilda-dist.svg")

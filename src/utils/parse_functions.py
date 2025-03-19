@@ -76,7 +76,9 @@ def get_lb(log_file) -> dict:
     if not root:
         partial_lb = grep("New lower bound: ", log_file)
         all = [int(i.split()[-1]) for i in partial_lb]
-        return {"lb": max(all)}
+        if all:
+            return {"lb": max(all)}
+        return {"lb": ""}
 
     value = float(root[0].split()[-3])
     return {"lb": value}
@@ -117,4 +119,15 @@ def get_solved(log_file) -> dict:
     if not solved:
         return {}
     value = float(solved[0].split("SOL")[-1].split()[0])
-    return {"lb": value, "ub": value}
+    return {"lb": value, "ub": value, "solved": value}
+
+
+def get_root_sets(log_file) -> dict:
+    root = grep("Final: ", log_file, max_matches=1)
+    if not root:
+        return {}
+
+    n_sets = int(root[0].split("Final: ")[1].split(" sets")[0])
+    n_pricings = int(root[0].split("|")[-1].split(" pricings")[0])
+
+    return {"sets_root": n_sets, "pricings_root": n_pricings}

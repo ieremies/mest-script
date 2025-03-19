@@ -130,4 +130,5 @@ cbar = fig.colorbar(
 cbar.set_ticks(ticks=ticks, labels=labels)
 
 
-plt.savefig("/Users/ieremies/mest/write/dis/img/matilda-perf.svg")
+plt.show()
+# plt.savefig("/Users/ieremies/mest/write/dis/img/matilda-perf.svg")

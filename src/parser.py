@@ -32,22 +32,21 @@ def parse_inst(log_file) -> pd.DataFrame:
             except Exception as e:
                 print(f"Error in {name} for {inst_name}: {e}")
                 continue
+
             for key in d:
-                if type(d[key]) == list and len(d[key]) > 1:
+                if type(d[key]) is list and len(d[key]) > 1:
                     df[key] = [d[key]]
                 else:
                     df[key] = d[key]
 
     if df["errors"][0] and len(df["errors"][0][0]) > 20:
         print(f"\n❌ {inst_name + ' ' * (14 - len(inst_name))}: {df['errors'][0][0]}")
-    df["errors"] = len(df["errors"])
+        df["errors"] = len(df["errors"])
+    else:
+        df["errors"] = None
 
     # TODO treat warnings
-    df["warnings"] = len(df["warnings"])
-
-    if df["solved"][0] != "":
-        df["lb"] = df["solved"]
-        df["ub"] = df["solved"]
+    df["warnings"] = len(df["warnings"]) - 1
 
     for i in df.iterrows():
         s = utils.checker.check(dict(i[1]))

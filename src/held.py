@@ -39,10 +39,12 @@ inst = "/home/ieremies/inst"
 
 
 def run_instance(instance, tl, force=False):
-    cmd = f"timeout --kill-after={0.01*tl}s {1.1*tl}s {color} -l {tl} {inst}/all/{instance}"
+    root = ""  # "-s 0 -d"
+    cmd = f"timeout --kill-after={0.01*tl}s {1.1*tl}s {color} -l {tl} {root} {inst}/all/{instance}"
     log_file = f"{logs}/held/{instance}.log"
 
-    if os.path.exists(log_file) and not force:
+    if os.path.exists(log_file):
+        # print(f"Skipping {instance}")
         return
 
     with open(log_file, "w") as fd:
@@ -54,6 +56,14 @@ def run_instance(instance, tl, force=False):
             pass
         except Exception as _:
             return
+
+    # Check if the log file exists
+    if os.path.exists(log_file):
+        return
+
+    # If it does not exist, append to file
+    with open(log_file, "a") as fd:
+        fd.write(f"Did not run {instance}\n")
 
 
 def parse_inst(log_file) -> pd.DataFrame:

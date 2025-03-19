@@ -49,33 +49,26 @@ def load_and_filter_results(file_path, instances):
 
 
 # Function to get solved times from results
-def get_solved_rank(df, min_time):
-    # for each line, return instance[time] / instance[min_time] if lb == ub and lb > 0 else return nan
+def get_solved_times(df):
+    # for each line, return time if lb == ub and lb > 0
+    # otherwise, return NaN
     return df.apply(
         lambda x: (
-            x["time"] / min_time[x["instance"]]
-            if x["lb"] == x["ub"] and x["lb"] > 0
-            else np.nan
+            min(x["time"], 3600) if x["lb"] == x["ub"] and x["lb"] > 0 else 4000
         ),
         axis=1,
     )
-
-    # return df[
-    #     (df["time"] != "")
-    #     & (df["lb"] != "")
-    #     & (df["lb"].astype(float) > 0)
-    #     & (df["lb"] == df["ub"])
-    # ]["time"].astype(float)
 
 
 def get_gap(df):
     # if df["lb"].astype(float) > 0: gap = (ub - lb) / lb
     # else: gap = ub / 2
+    # set as float64
     return df.apply(
         lambda x: (
             (x["ub"] - x["lb"]) / x["lb"]
-            if x["lb"] != ""
-            else x["ub"] / 2 if x["ub"] != "" else 10000
+            if x["lb"] != "" and x["ub"] != "" and x["lb"] > 0
+            else x["ub"] / 2 if x["ub"] != "" else 200
         ),
         axis=1,
     )
@@ -91,11 +84,8 @@ def get_common_instances(results):
 def plot_cumulative(data, axis, n_instances, label=None, max=None):
     # sns.ecdfplot(data, ax=axis, label=label)
     data = np.sort(data)
-    if max:
-        data = np.insert(data, len(data), max)
-        # n_instances += 1
     y = np.arange(len(data)) / n_instances
-    axis.plot(data, y, label=label)
+    axis.plot(data, y, label=label, drawstyle="steps-post")
 
 
 if __name__ == "__main__":
@@ -155,6 +145,10 @@ if __name__ == "__main__":
     # Plot solved instances cumulative distribution
     for name, df in results.items():
         rank = get_solved_rank(df, min_times)
+        if "held" in name:
+            name = "Held et al."
+        else:
+            name = "Ours"
         plot_cumulative(rank, axis=axs[0], label=name, n_instances=n_inst, max=3600)
 
     # === Plotting gap x cumulative probability ================================
@@ -167,7 +161,7 @@ if __name__ == "__main__":
 
     axs[1].set_xscale("log")
     axs[1].set_xlabel("Gap")
-    gap_xlim_min = 0.0036
+    gap_xlim_min = 0.004
     gap_xlim_max = 10.3
     axs[1].set_xlim(gap_xlim_min, gap_xlim_max)
     axs[1].grid(axis="x", linestyle="--", alpha=0.7)
@@ -185,11 +179,15 @@ if __name__ == "__main__":
                 f"File {name} has {len(gap[gap > 10.0])} instances with gap > {gap_xlim_max}."
             )
             print(max(gap))
+
+        if "held" in name:
+            name = "Held et al."
+        else:
+            name = "Ours"
         plot_cumulative(gap, axis=axs[1], label=name, n_instances=n_inst)
 
     axs[1].legend(loc="lower right")
     plt.subplots_adjust(wspace=0)
-    # print which colors are used in each file
-    # plt.show()
+    plt.show()
 
-    plt.savefig(f"/Users/ieremies/mest/write/dis/img/pp-{args.instance_set}.svg")
+    # plt.savefig(f"/Users/ieremies/mest/write/dis/img/pp-{args.instance_set}.svg")

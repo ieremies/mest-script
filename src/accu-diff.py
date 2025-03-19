@@ -50,8 +50,9 @@ matilda = df[df["instance"].str.startswith("g")]
 dimacs = df[~df["instance"].str.startswith("g")]
 
 # Use sns to plot the cumulative distribution of "diff", on a log scale
-sns.ecdfplot(data=matilda, x="diff", log_scale=True)
-# sns.ecdfplot(data=dimacs, x="diff", log_scale=True)
+sns.ecdfplot(data=dimacs, x="diff", log_scale=True, label="DIMACS")
+sns.ecdfplot(data=matilda, x="diff", log_scale=True, label="MATILDA")
+plt.legend(loc="lower right")
 
 plt.xlim(1 / range, range)
 plt.xlabel("Performance Ratio")
@@ -59,4 +60,6 @@ plt.ylabel("")
 
 plt.grid(True, which="major", ls="--", alpha=0.7)
 
+
+# plt.show()
 plt.savefig("/Users/ieremies/mest/write/dis/img/accu-perf-matilda.svg")

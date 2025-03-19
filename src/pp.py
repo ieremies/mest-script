@@ -53,18 +53,22 @@ def get_solved_times(df):
     # for each line, return time if lb == ub and lb > 0
     # otherwise, return NaN
     return df.apply(
-        lambda x: x["time"] if x["lb"] == x["ub"] and x["lb"] > 0 else np.nan, axis=1
+        lambda x: (
+            min(x["time"], 3600) if x["lb"] == x["ub"] and x["lb"] > 0 else 4000
+        ),
+        axis=1,
     )
 
 
 def get_gap(df):
     # if df["lb"].astype(float) > 0: gap = (ub - lb) / lb
     # else: gap = ub / 2
+    # set as float64
     return df.apply(
         lambda x: (
             (x["ub"] - x["lb"]) / x["lb"]
-            if x["lb"] != ""
-            else x["ub"] / 2 if x["ub"] != "" else 10000
+            if x["lb"] != "" and x["ub"] != "" and x["lb"] > 0
+            else x["ub"] / 2 if x["ub"] != "" else 200
         ),
         axis=1,
     )
@@ -77,14 +81,17 @@ def get_common_instances(results):
 
 
 # Plot cumulative distribution using pandas
-def plot_cumulative(data, axis, n_instances, label=None, max=None):
+def plot_cumulative(data, axis, n_instances, label=None, max=None, min=None):
     # sns.ecdfplot(data, ax=axis, label=label)
     data = np.sort(data)
-    if max:
-        data = np.insert(data, len(data), max)
-        # n_instances += 1
+    # if max:
+    #     data = np.insert(data, len(data), max)
+    #     n_instances += 1
+    # if min:
+    #     data = np.insert(data, 0, min)
+    #     n_instances += 1
     y = np.arange(len(data)) / n_instances
-    axis.plot(data, y, label=label)
+    axis.plot(data, y, label=label, drawstyle="steps-post")
 
 
 if __name__ == "__main__":
@@ -111,13 +118,15 @@ if __name__ == "__main__":
         max_time = max(max_time, tl)
 
     # Get common instances across all files
-    inst = get_common_instances(results)
-    n_inst = len(inst)
-    results = {name: df[df["instance"].isin(inst)] for name, df in results.items()}
+    # inst = get_common_instances(results)
+    # n_inst = len(inst)
+    # results = {name: df[df["instance"].isin(inst)] for name, df in results.items()}
 
-    print("Common instances:", n_inst)
+    # print("Common instances:", n_inst)
 
     fig, axs = plt.subplots(1, 2, gridspec_kw={"width_ratios": [7, 4]})
+    # Set size as width 16cm and height 9cm
+    fig.set_size_inches(6.3, 3.54)
 
     # === Plotting time x cumulative probability ===============================
     axs[0].set_ylim(0.0, 1.0)
@@ -133,6 +142,8 @@ if __name__ == "__main__":
     # Plot solved instances cumulative distribution
     for name, df in results.items():
         time = get_solved_times(df)
+        print(len(time[time <= 3600]), len(time))
+        print(f"File {name} has {len(time[time < 3600])} instances with time < 3600.")
         print(f"{name:^25}... {len(time)} solved in {time.sum():.2f}s.")
         plot_cumulative(time, axis=axs[0], label=name, n_instances=n_inst, max=3600)
 
@@ -147,14 +158,16 @@ if __name__ == "__main__":
 
     axs[1].set_xscale("log")
     axs[1].set_xlabel("Gap")
-    gap_xlim_min = 0.0036
-    gap_xlim_max = 10
+    gap_xlim_min = 0.004
+    gap_xlim_max = 200
     axs[1].set_xlim(gap_xlim_min, gap_xlim_max)
     axs[1].grid(axis="x", linestyle="--", alpha=0.7)
 
     # Plot solved instances cumulative distribution
     for name, df in results.items():
+        # print quantity of gap < 0.0036
         gap = get_gap(df)
+        print(len(gap[gap <= 0.0036]), len(gap))
         # if exists a 0 < gap < 0.0036:
         if len(gap[(0 < gap) & (gap < gap_xlim_min)]) > 0:
             print(
@@ -165,11 +178,17 @@ if __name__ == "__main__":
                 f"File {name} has {len(gap[gap > 10.0])} instances with gap > {gap_xlim_max}."
             )
             print(max(gap))
-        plot_cumulative(gap, axis=axs[1], label=name, n_instances=n_inst)
+        if "held" in name:
+            name = "Held et al."
+        else:
+            name = "Ours"
+        plot_cumulative(
+            gap, axis=axs[1], label=name, n_instances=n_inst, min=gap_xlim_min
+        )
 
     axs[1].legend(loc="lower right")
     plt.subplots_adjust(wspace=0)
-    # print which colors are used in each file
-    plt.show()
+    # plt.show()
 
-    # plt.savefig(f"/Users/ieremies/mest/write/dis/img/accu-{args.instance_set}.svg")
+    plt.savefig(f"/Users/ieremies/mest/write/dis/img/accu-{args.instance_set}.svg")
+    print(f"Saved to /Users/ieremies/mest/write/dis/img/accu-{args.instance_set}.svg.")
